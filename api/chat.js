@@ -1,6 +1,7 @@
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
+  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -12,22 +13,42 @@ export default async function handler(req) {
     });
   }
 
+  // Only allow POST
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      {
+        status: 405,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
   }
 
   try {
-    console.log("API KEY EXISTS:", !!process.env.ANTHROPIC_API_KEY);
+    // Check API key exists
+    console.log('API KEY EXISTS:', !!process.env.ANTHROPIC_API_KEY);
 
     const body = await req.json();
     const { messages, system } = body;
 
+    // Validate input
+    if (!messages || !Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid messages format' }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+
+    // Call Anthropic API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -38,15 +59,18 @@ export default async function handler(req) {
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 1500,
-        system,
+        system: system || '',
         messages,
       }),
     });
 
-    console.log("Anthropic status:", response.status);
+    console.log('Anthropic status:', response.status);
 
     const data = await response.json();
 
+    console.log('Anthropic response:', JSON.stringify(data));
+
+    // If Anthropic returns an error, forward it properly
     if (!response.ok) {
       return new Response(JSON.stringify(data), {
         status: response.status,
@@ -57,6 +81,7 @@ export default async function handler(req) {
       });
     }
 
+    // Success
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: {
@@ -66,12 +91,19 @@ export default async function handler(req) {
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    console.error('Server Error:', err.message);
+
+    return new Response(
+      JSON.stringify({
+        error: err.message || 'Internal server error',
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
+    );
   }
 }
