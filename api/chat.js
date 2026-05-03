@@ -32,7 +32,7 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: 1200,
         system,
         messages,
       }),
